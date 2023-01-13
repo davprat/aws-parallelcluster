@@ -51,7 +51,7 @@ from jinja2 import FileSystemLoader
 from jinja2.sandbox import SandboxedEnvironment
 from network_template_builder import Gateways, NetworkTemplateBuilder, SubnetConfig, VPCConfig
 from retrying import retry
-from troposphere import Ref, Sub, Template, ec2, resourcegroups
+from troposphere import GetAtt, Output, Ref, Sub, Template, ec2, resourcegroups
 from troposphere.ec2 import PlacementGroup
 from troposphere.efs import FileSystem as EFSFileSystem
 from troposphere.efs import MountTarget
@@ -78,6 +78,7 @@ from utils import (
     get_network_interfaces_count,
     get_vpc_snakecase_value,
     random_alphanumeric,
+    retrieve_cfn_outputs,
     scheduler_plugin_definition_uploader,
     set_logger_formatter,
 )
@@ -539,7 +540,9 @@ def test_datadir(request, datadir):
 
 
 @pytest.fixture()
-def pcluster_config_reader(test_datadir, vpc_stack, request, region, scheduler_plugin_configuration):
+def pcluster_config_reader(
+    test_datadir, vpc_stack, request, region, scheduler_plugin_configuration, odcr_stack_factory
+):
     """
     Define a fixture to render pcluster config templates associated to the running test.
 
@@ -559,6 +562,7 @@ def pcluster_config_reader(test_datadir, vpc_stack, request, region, scheduler_p
         config_file="pcluster.config.yaml",
         benchmarks=None,
         output_file=None,
+        use_odcr=False,
         **kwargs,
     ):
         config_file_path = test_datadir / config_file
@@ -572,7 +576,13 @@ def pcluster_config_reader(test_datadir, vpc_stack, request, region, scheduler_p
         output_file_path.write_text(rendered_template)
         if not config_file.endswith("image.config.yaml"):
             inject_additional_config_settings(
-                output_file_path, request, region, benchmarks, scheduler_plugin_configuration
+                output_file_path,
+                request,
+                region,
+                benchmarks,
+                scheduler_plugin_configuration,
+                odcr_stack_factory,
+                inject_odcr=use_odcr,
             )
         else:
             inject_additional_image_configs_settings(output_file_path, request)
@@ -609,7 +619,13 @@ def inject_additional_image_configs_settings(image_config, request):
 
 
 def inject_additional_config_settings(  # noqa: C901
-    cluster_config, request, region, benchmarks=None, scheduler_plugin_configuration=None
+    cluster_config,
+    request,
+    region,
+    benchmarks=None,
+    scheduler_plugin_configuration=None,
+    odcr_stack_factory=None,
+    inject_odcr=False,
 ):  # noqa C901
     with open(cluster_config, encoding="utf-8") as conf_file:
         config_content = yaml.safe_load(conf_file)
@@ -711,9 +727,29 @@ def inject_additional_config_settings(  # noqa: C901
                     compute_resource["MaxCount"] = 150
 
     configure_scheduler_plugin(scheduler_plugin_configuration, config_content)
+    if inject_odcr:
+        configure_odcr_for_cluster(config_content, region, odcr_stack_factory)
 
     with open(cluster_config, "w", encoding="utf-8") as conf_file:
         yaml.dump(config_content, conf_file)
+
+
+def configure_odcr_for_cluster(cluster_config, region, odcr_stack_factory):
+    if not odcr_stack_factory:
+        return
+    stack_id = odcr_stack_factory(cluster_config)
+    outputs = retrieve_cfn_outputs(stack_id, region)
+    for queue in cluster_config["Scheduling"]["SlurmQueues"]:
+        queue_name = queue.get("Name")
+        for compute in queue.get("ComputeResources"):
+            if "CapacityReservationTarget" not in compute:
+                compute_name = compute.get("Name")
+                group_arn = outputs.get(f"{queue_name}T{compute_name}TReservationGroup")
+                odcr_id = outputs.get(f"{queue_name}T{compute_name}TReservation")
+                if group_arn:
+                    compute.update({"CapacityReservationTarget": {"CapacityReservationResourceGroupArn": group_arn}})
+                elif odcr_id:
+                    compute.update({"CapacityReservationTarget": {"CapacityReservationId": odcr_id}})
 
 
 def configure_scheduler_plugin(scheduler_plugin_configuration, config_content):
@@ -1378,6 +1414,133 @@ def placement_group_stack(cfn_stacks_factory, request, region):
 
     if not request.config.getoption("no_delete"):
         cfn_stacks_factory.delete_stack(stack.name, region)
+    else:
+        logging.warning("Skipping deletion of CFN stacks because --no-delete option is set")
+
+
+@pytest.fixture()
+@pytest.mark.usefixtures("setup_credentials")
+def odcr_stack_factory(request, region, cfn_stacks_factory, vpc_stack):
+
+    created_stacks = []
+
+    def get_capacity_needs(config_content):
+        capacity_needs = {}
+        if dict_has_nested_key(config_content, ("Scheduling", "SlurmQueues")):
+            ec2_resource = boto3.resource("ec2")
+            for slurm_queue in config_content.get("Scheduling").get("SlurmQueues"):
+                availability_zones = []
+                subnets = slurm_queue.get("Networking").get("SubnetIds")
+                if len(subnets) != 1:
+                    continue
+                for subnet in subnets:
+                    availability_zones.append(ec2_resource.Subnet(subnet).availability_zone)
+                queue_needs = {}
+                for compute_resource in slurm_queue.get("ComputeResources"):
+                    if "CapacityReservationTarget" not in compute_resource and "Networking" not in compute_resource:
+                        name = compute_resource.get("Name")
+                        count = compute_resource.get("MaxCount")
+                        instance_types = (
+                            [instance_type.get("InstanceType") for instance_type in compute_resource.get("Instances")]
+                            if "Instances" in compute_resource
+                            else [compute_resource.get("InstanceType")]
+                        )
+                        type_needs = []
+                        for instance_type in instance_types:
+                            type_needs.append({"type": instance_type, "count": count})
+                        queue_needs.update({name: type_needs})
+                capacity_needs.update({slurm_queue.get("Name"): {"resources": queue_needs, "azs": availability_zones}})
+        return capacity_needs
+
+    def create_odcr_group(queue, compute, reservations):
+        group_name = f"GroupT{queue}T{compute}"
+        group = resourcegroups.Group(
+            group_name,
+            Name=generate_stack_name(f"OdcrGroupT{queue}T{compute}", request.config.getoption("stackname_suffix")),
+            Configuration=[
+                resourcegroups.ConfigurationItem(Type="AWS::EC2::CapacityReservationPool"),
+                resourcegroups.ConfigurationItem(
+                    Type="AWS::ResourceGroups::Generic",
+                    Parameters=[
+                        resourcegroups.ConfigurationParameter(
+                            Name="allowed-resource-types", Values=["AWS::EC2::CapacityReservation"]
+                        )
+                    ],
+                ),
+            ],
+            Resources=[
+                Sub(
+                    "arn:${partition}:ec2:${region}:${account_id}:capacity-reservation/${odcr_id}",
+                    partition=get_arn_partition(region),
+                    region=region,
+                    account_id=Ref("AWS::AccountId"),
+                    odcr_id=Ref(odcr),
+                )
+                for odcr in reservations
+            ],
+        )
+
+        return group_name, group
+
+    def create_odcr_stack(config_content):
+        logging.info("Setting up the ODCR stack")
+        odcr_template = Template()
+        odcr_template.set_version()
+        odcr_template.set_description("ODCR stack for integration tests")
+        capacity_needs = get_capacity_needs(config_content)
+        logging.info("Capacity requirements: %s", json.dumps(capacity_needs, indent=2))
+        for queue, queue_needs in capacity_needs.items():
+            resources = queue_needs.get("resources", {})
+            azs = queue_needs.get("azs", [])
+            for compute, needs in resources.items():
+                reservations = []
+                for need in needs:
+                    instance_type = need.get("type")
+                    clean_type = re.sub(r"\.", "T", instance_type)
+                    odcr_name = f"OdcrT{queue}T{compute}T{clean_type}"
+                    capacity_reservation = ec2.CapacityReservation(
+                        odcr_name,
+                        AvailabilityZone=random.choice(azs),
+                        InstanceCount=need.get("count"),
+                        InstancePlatform="Linux/UNIX",
+                        InstanceType=instance_type,
+                    )
+                    odcr_template.add_resource(capacity_reservation)
+                    reservations.append(capacity_reservation)
+                    if len(needs) == 1:
+                        odcr_template.add_output(
+                            Output(
+                                f"{queue}T{compute}TReservation",
+                                Description=f"Capacity reservation for {compute} in {queue}",
+                                Value=Ref(capacity_reservation),
+                            )
+                        )
+
+                group_name, odcr_group = create_odcr_group(queue, compute, reservations)
+                odcr_template.add_resource(odcr_group)
+                odcr_template.add_output(
+                    Output(
+                        f"{queue}T{compute}TReservationGroup",
+                        Description=f"Capacity reservation group for {compute} in {queue}",
+                        Value=GetAtt(odcr_group, "Arn"),
+                    )
+                )
+
+        cfn_stack = CfnStack(
+            name=generate_stack_name("integ-tests-odcr", request.config.getoption("stackname_suffix")),
+            region=region,
+            template=odcr_template.to_json(),
+        )
+
+        cfn_stacks_factory.create_stack(cfn_stack)
+        created_stacks.append(cfn_stack.cfn_stack_id)
+        return cfn_stack.cfn_stack_id
+
+    yield create_odcr_stack
+
+    if not request.config.getoption("no_delete"):
+        for delete_stack in created_stacks:
+            cfn_stacks_factory.delete_stack(delete_stack, region)
     else:
         logging.warning("Skipping deletion of CFN stacks because --no-delete option is set")
 
