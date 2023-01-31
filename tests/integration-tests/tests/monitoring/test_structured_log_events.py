@@ -31,11 +31,16 @@ def test_custom_compute_action_failure(
     bucket_name = s3_bucket_factory()
 
     bucket = boto3.resource("s3", region_name=region).Bucket(bucket_name)
+    script = "on_node_start.sh"
+    script_path = f"test_structured_logging/{script}"
+    bucket.upload_file(str(test_datadir / script), script_path)
     bad_script = "on_compute_configured_error.sh"
     bad_script_path = f"test_structured_logging/{bad_script}"
     bucket.upload_file(str(test_datadir / bad_script), bad_script_path)
 
-    cluster_config = pcluster_config_reader(bucket=bucket_name, bad_script_path=bad_script_path)
+    cluster_config = pcluster_config_reader(
+        bucket=bucket_name, script_path=script_path, bad_script_path=bad_script_path
+    )
     cluster = clusters_factory(cluster_config)
 
     remote_command_executor = RemoteCommandExecutor(cluster)

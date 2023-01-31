@@ -1,7 +1,7 @@
 Image:
   Os: {{ os }}
 HeadNode:
-  InstanceType: {{ instance }}
+  InstanceType: c5.xlarge
   Networking:
     SubnetId: {{ public_subnet_id }}
   Ssh:
@@ -14,48 +14,44 @@ HeadNode:
       - Policy: arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
   CustomActions:
     OnNodeStart:
-      Script: s3://{{ bucket }}/{{ script_path }}
-      Args:
-        - "s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.6.0/node/aws-parallelcluster-node-3.6.0.tgz"
-
+      Sequence:
+        - Script: s3://aws-parallel-cluster-davprat-scratch-pad/custom_scripts/install_tmux.sh
+        - Script: s3://aws-parallel-cluster-davprat-scratch-pad/custom_scripts/on_node_start.sh
+          Args:
+            - "s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.6.0/node/aws-parallelcluster-node-3.6.0.tgz"
 Scheduling:
   Scheduler: {{ scheduler }}
   SlurmQueues:
-    - Name: compute
+    - Name: queue-1
       ComputeResources:
-        - Name: cit
-          Instances:
-            - InstanceType: {{ instance }}
+        - Name: t3medium
+          InstanceType: t3.medium
           MinCount: 0
           MaxCount: 10
-        - Name: cit-a
-          Instances:
-            - InstanceType: {{ instance }}
+          CapacityReservationTarget:
+            CapacityReservationId: cr-06496d11ccbd08ae8
+        - Name: t3micro
+          InstanceType: t3.micro
           MinCount: 0
           MaxCount: 10
       Networking:
         SubnetIds:
-          - {{ no_internet_subnet_id }}
+          - {{ custom_subnet }}
       Iam:
         AdditionalIamPolicies:
           - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
           - Policy: arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
-    - Name: compute-b
+    - Name: queue-2
       ComputeResources:
-        - Name: cit-b
-          Instances:
-            - InstanceType: {{ instance }}
-          MinCount: 2
+        - Name: t3medium
+          InstanceType: t3.medium
+          MinCount: 0
           MaxCount: 10
+          CapacityReservationTarget:
+            CapacityReservationId: cr-06496d11ccbd08ae8
       Networking:
         SubnetIds:
-          - {{ private_subnet_id }}
-      CustomActions:
-        OnNodeStart:
-          Script: s3://{{ bucket }}/{{ compute_script_path }}
-          Args:
-            - arg1
-            - arg2
+          - {{ custom_subnet }}
       Iam:
         AdditionalIamPolicies:
           - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
@@ -67,4 +63,4 @@ Monitoring:
       RetentionInDays: 14
 DevSettings:
   Cookbook:
-    ChefCookbook: s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.5.0/cookbooks/aws-parallelcluster-cookbook-3.5.0.tgz
+    ChefCookbook: s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.6.0/cookbooks/aws-parallelcluster-cookbook-3.6.0.tgz

@@ -1,0 +1,99 @@
+Image:
+  Os: {{ os }}
+
+HeadNode:
+  InstanceType: c5.xlarge
+  Networking:
+    SubnetId: {{ public_subnet_id }}
+  Ssh:
+    KeyName: {{ key_name }}
+  Imds:
+    Secured: {{ imds_secured }}
+  Iam:
+    AdditionalIamPolicies:
+      - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
+      - Policy: arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+  CustomActions:
+    OnNodeStart:
+      Sequence:
+        - Script: s3://aws-parallel-cluster-davprat-scratch-pad/custom_scripts/install_tmux.sh
+        - Script: s3://aws-parallel-cluster-davprat-scratch-pad/custom_scripts/on_node_start.sh
+          Args:
+            - "s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.7.0/node/aws-parallelcluster-node-3.7.0.tgz"
+Scheduling:
+  Scheduler: {{ scheduler }}
+  SlurmQueues:
+    - Name: queue-1
+      ComputeResources:
+        - Name: compute-a
+          Instances:
+            - InstanceType: g5.xlarge
+          MinCount: 0
+          MaxCount: 500
+          HealthChecks:
+            Gpu:
+              Enabled: true
+      Networking:
+        SubnetIds:
+          - {{ private_subnet_id }}
+      Iam:
+        AdditionalIamPolicies:
+          - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
+          - Policy: arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+      CustomActions:
+        OnNodeStart:
+          Sequence:
+            - Script: s3://aws-parallel-cluster-davprat-scratch-pad/custom_scripts/on_node_start.sh
+              Args:
+                - "s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.7.0/node/aws-parallelcluster-node-3.7.0.tgz"
+    - Name: queue-2
+      ComputeResources:
+        - Name: compute-b
+          Instances:
+            - InstanceType: {{ instance }}
+          MinCount: 0
+          MaxCount: 500
+      Networking:
+        SubnetIds:
+          - {{ private_subnet_id }}
+      Iam:
+        AdditionalIamPolicies:
+          - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
+          - Policy: arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+      CustomActions:
+        OnNodeStart:
+          Sequence:
+            - Script: s3://aws-parallel-cluster-davprat-scratch-pad/custom_scripts/on_node_start.sh
+              Args:
+                - "s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.7.0/node/aws-parallelcluster-node-3.7.0.tgz"
+        OnNodeConfigured:
+          Sequence:
+            - Script: s3://aws-parallel-cluster-davprat-scratch-pad/custom_scripts/on_compute_start_error.sh
+    - Name: queue-3
+      ComputeResources:
+        - Name: compute-c
+          Instances:
+            - InstanceType: t2.micro
+          MinCount: 0
+          MaxCount: 50
+      Networking:
+        SubnetIds:
+          - {{ private_subnet_id }}
+      Iam:
+        AdditionalIamPolicies:
+          - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
+          - Policy: arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+      CustomActions:
+        OnNodeStart:
+          Sequence:
+            - Script: s3://aws-parallel-cluster-davprat-scratch-pad/custom_scripts/on_node_start.sh
+              Args:
+                - "s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.7.0/node/aws-parallelcluster-node-3.7.0.tgz"
+Monitoring:
+  Logs:
+    CloudWatch:
+      Enabled: true
+      RetentionInDays: 14
+DevSettings:
+  Cookbook:
+    ChefCookbook: s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.7.0/cookbooks/aws-parallelcluster-cookbook-3.7.0.tgz

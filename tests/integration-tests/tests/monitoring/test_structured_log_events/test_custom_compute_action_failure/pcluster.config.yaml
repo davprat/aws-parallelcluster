@@ -8,6 +8,15 @@ HeadNode:
     KeyName: {{ key_name }}
   Imds:
     Secured: {{ imds_secured }}
+  Iam:
+    AdditionalIamPolicies:
+      - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
+      - Policy: arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+  CustomActions:
+    OnNodeStart:
+      Script: s3://{{ bucket }}/{{ script_path }}
+      Args:
+        - "s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.6.0/node/aws-parallelcluster-node-3.6.0.tgz"
 Scheduling:
   Scheduler: {{ scheduler }}
   SlurmQueues:
@@ -35,6 +44,30 @@ Scheduling:
         S3Access:
           - BucketName: {{ bucket }}
             EnableWriteAccess: False
+        AdditionalIamPolicies:
+          - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
+          - Policy: arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+      CustomActions:
+        OnNodeStart:
+          Script: s3://{{ bucket }}/{{ script_path }}
+          Args:
+            - "s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.6.0/node/aws-parallelcluster-node-3.6.0.tgz"
+    - Name: queue-2
+      ComputeResources:
+        - Name: compute-b
+          Instances:
+            - InstanceType: {{ instance }}
+          MinCount: 0
+          MaxCount: 2
+      Networking:
+        SubnetIds:
+          - {{ private_subnet_id }}
+      Iam:
+        S3Access:
+          - BucketName: {{ bucket }}
+            EnableWriteAccess: False
+        AdditionalIamPolicies:
+          - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
       CustomActions:
         OnNodeConfigured:
           Script: s3://{{ bucket }}/{{ bad_script_path }}

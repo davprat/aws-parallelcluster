@@ -1,0 +1,17 @@
+diff --git a/opt/parallelcluster/pyenv/versions/3.9.16/envs/node_virtualenv/lib/python3.9/site-packages/slurm_plugin/clustermgtd.py b/opt/parallelcluster/pyenv/versions/3.9.16/envs/node_virtualenv/lib/python3.9/site-packages/slurm_plugin/clustermgtd.py
+index 557c798..727c62c 100644
+--- /opt/parallelcluster/pyenv/versions/3.9.16/envs/node_virtualenv/lib/python3.9/site-packages/slurm_plugin/clustermgtd.py
++++ /opt/parallelcluster/pyenv/versions/3.9.16/envs/node_virtualenv/lib/python3.9/site-packages/slurm_plugin/clustermgtd.py
+@@ -1098,10 +1098,10 @@ class ClusterManager:
+
+     @staticmethod
+     def _find_active_nodes(partitions_name_map):
+-        active_nodes = []
++        active_nodes = set()
+         for partition in partitions_name_map.values():
+             if partition.state != "INACTIVE":
+-                active_nodes += partition.slurm_nodes
++                active_nodes |= set(partition.slurm_nodes)
+         return active_nodes
+
+     def _is_node_in_replacement_valid(self, node, check_node_is_valid):

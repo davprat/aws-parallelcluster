@@ -9,7 +9,7 @@
 # OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions and
 # limitations under the License.
 from collections import defaultdict, namedtuple
-from typing import Iterable
+from typing import Iterable, List
 
 from aws_cdk import aws_cloudwatch as cloudwatch
 from aws_cdk import aws_ec2 as ec2
@@ -431,6 +431,8 @@ class CWDashboardConstruct(Construct):
             )
         )
 
+        cluster_health_metrics.extend(self._create_extended_metrics())
+
         self._add_text_widget("# Cluster Health Metrics")
         self._add_health_metrics_graph_widgets(cluster_health_metrics)
         self._add_text_widget(
@@ -661,6 +663,16 @@ class CWDashboardConstruct(Construct):
                 ],
             ),
             SectionWidgets(
+                "Bootstrap error logs",
+                [
+                    self._new_cw_log_widget(
+                        title="bootstrap_error_msg",
+                        conditions=[Condition(["slurm"], scheduler)],
+                        filters=[self._new_filter(pattern=".*bootstrap_error_msg")],
+                    ),
+                ],
+            ),
+            SectionWidgets(
                 "NICE DCV integration logs",
                 [
                     self._new_cw_log_widget(
@@ -808,3 +820,57 @@ class CWDashboardConstruct(Construct):
 
         self.cloudwatch_dashboard.add_widgets(*widgets_list)
         self._update_coord_after_section(self.graph_height)
+
+    def _create_extended_metrics(self) -> List[_HealthMetric]:
+        return [
+            _HealthMetric(
+                "Compute Fleet Metrics",
+                [
+                    _CustomMetricFilter(
+                        metric_name="BackingInstanceCount",
+                        filter_pattern='{ $.event-type = "cluster-instance-count" && $.scheduler = "slurm" }',
+                        metric_value="$.detail.count",
+                        metric_statistic="max",
+                    ),
+                    _CustomMetricFilter(
+                        metric_name="IdleDynamicNodeCount",
+                        filter_pattern='{ $.event-type = "compute-node-idle-time" && $.scheduler = "slurm" && '
+                        '$.detail.node-type = "dynamic" }',
+                        metric_value="$.detail.count",
+                        metric_statistic="max",
+                    ),
+                    _CustomMetricFilter(
+                        metric_name="IdleStaticNodeCount",
+                        filter_pattern='{ $.event-type = "compute-node-idle-time" && $.scheduler = "slurm" && '
+                        '$.detail.node-type = "static" }',
+                        metric_value="$.detail.count",
+                        metric_statistic="max",
+                    ),
+                    _CustomMetricFilter(
+                        metric_name="NodesInUseCount",
+                        filter_pattern='{ $.event-type = "compute-node-state-count" && $.scheduler = "slurm" && '
+                        '($.detail.node-state = "MIXED+CLOUD" || $.detail.node-state = "ALLOCATED+CLOUD" || '
+                        '$.detail.node-state = "ALLOCATED++CLOUD" || '
+                        '$.detail.node-state = "COMPLETING+CLOUD") }',
+                        metric_value="$.detail.count",
+                        metric_statistic="max",
+                    ),
+                    _CustomMetricFilter(
+                        metric_name="NodesPoweringUpCount",
+                        filter_pattern='{ $.event-type = "compute-node-state-count" && $.scheduler = "slurm" && '
+                        '($.detail.node-state = "*+POWERING_UP" '
+                        '|| $.detail.node-state = "*+POWERED_UP") }',
+                        metric_value="$.detail.count",
+                        metric_statistic="max",
+                    ),
+                    _CustomMetricFilter(
+                        metric_name="NodesPoweringDownCount",
+                        filter_pattern='{ $.event-type = "compute-node-state-count" && $.scheduler = "slurm" && '
+                        '$.detail.node-state = "*+POWERING_DOWN" }',
+                        metric_value="$.detail.count",
+                        metric_statistic="max",
+                    ),
+                ],
+                left_y_axis=cloudwatch.YAxisProps(min=0.0),
+            ),
+        ]

@@ -23,6 +23,7 @@ from hashlib import sha1
 
 import boto3
 import requests
+from _pytest.fixtures import FixtureRequest
 from assertpy import assert_that
 from jinja2 import FileSystemLoader
 from jinja2.sandbox import SandboxedEnvironment
@@ -120,6 +121,14 @@ class ClusterCreationError(SetupError):
 
     def __str__(self):
         return f"ClusterCreationError: {self.message}"
+
+
+class ClusterConfiguration:
+    """Utility class to hold config output path and the fixture request."""
+
+    def __init__(self, output_file_path: os.PathLike[str], request: FixtureRequest):
+        self.output_file_path: os.PathLike[str] = output_file_path
+        self.request: FixtureRequest = request
 
 
 class InstanceTypesData:
@@ -557,6 +566,7 @@ def check_head_node_security_group(region, cluster, port, expected_cidr):
 def check_status(cluster, cluster_status=None, head_node_status=None, compute_fleet_status=None):
     """Check the cluster's status and its head and compute status is as expected."""
     cluster_info = cluster.describe_cluster()
+    logging.info("Cluster Info: %s", cluster_info)
     if cluster_status:
         assert_that(cluster_info["clusterStatus"]).is_equal_to(cluster_status)
     if head_node_status:

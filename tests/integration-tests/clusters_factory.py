@@ -12,13 +12,18 @@
 import functools
 import json
 import logging
+import math
 import re
 import subprocess
+from datetime import datetime, timezone
+from typing import Dict, List
 
 import boto3
 import yaml
+from _pytest.stash import StashKey
 from framework.credential_providers import run_pcluster_command
 from retrying import retry
+from time_utils import seconds
 from utils import (
     ClusterCreationError,
     dict_add_nested_key,
@@ -31,6 +36,8 @@ from utils import (
     retrieve_cfn_resources,
     retry_if_subprocess_error,
 )
+
+CLUSTER_STASH_KEY = StashKey[List[Dict]]()
 
 
 def suppress_and_log_exception(func):
@@ -334,6 +341,55 @@ class Cluster:
         """Return True if the cluster as a LoginNode pool."""
         info = self.describe_cluster()
         return "loginNodes" in info.keys()
+
+    @property
+    def log_group(self):
+        return self.cfn_resources.get("CloudWatchLogGroup")
+
+    @property
+    def creation_time(self):
+        client = boto3.client("cloudformation")
+        result = client.describe_stacks(StackName=self.cfn_name)
+        return math.floor(result.get("Stacks")[0].get("CreationTime").timestamp())
+
+    level_filters = {
+        logging.DEBUG: ["DEBUG", "INFO", "WARNING", "ERROR", "FATAL"],
+        logging.INFO: ["INFO", "WARNING", "ERROR", "FATAL"],
+        logging.WARNING: ["WARNING", "ERROR", "FATAL"],
+        logging.ERROR: ["ERROR", "FATAL"],
+        logging.FATAL: ["FATAL"],
+    }
+
+    def get_health_events(self, log_level=logging.WARNING):
+        @retry(wait_fixed=seconds(20), stop_max_delay=seconds(300))
+        def wait_for_query_complete():
+            results = log_client.get_query_results(queryId=query_id)
+            status = results.get("status")
+            if status in ["Scheduled", "Running"]:
+                raise Exception()
+            return results
+
+        now = datetime.now(tz=timezone.utc)
+        log_client = boto3.client("logs")
+        level_filter = (
+            f"| filter level in {self.level_filters.get(log_level)}" if log_level in self.level_filters else ""
+        )
+        query_string = "fields datetime, level" f" {level_filter}" " | sort datetime asc"
+        logging.info("Sending query:\n%s", query_string)
+        response = log_client.start_query(
+            logGroupName=self.log_group,
+            startTime=self.creation_time,
+            endTime=math.ceil(now.timestamp()),
+            queryString=query_string,
+        )
+        query_id = response.get("queryId", None)
+        if query_id:
+            response = wait_for_query_complete()
+            if response.get("status") in ["Complete"]:
+                for result in response.get("results"):
+                    entry = {event["field"]: event["value"] for event in result}
+                    log_result = log_client.get_log_record(logRecordPointer=entry.get("@ptr"))
+                    yield json.loads(log_result.get("logRecord").get("@message"))
 
     @property
     def cfn_name(self):

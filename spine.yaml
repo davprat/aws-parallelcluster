@@ -1,0 +1,29 @@
+Region: us-east-1
+Image:
+  Os: alinux2
+HeadNode:
+  InstanceType: c5.xlarge
+  Networking:
+    SubnetId: subnet-0957ff040c6cdccb7
+  Ssh:
+    KeyName: pcluster-us-east-1
+  Iam:
+    AdditionalIamPolicies:
+      - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
+      - Policy: arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+Scheduling:
+  Scheduler: slurm
+  SlurmQueues:
+  - Name: queue-1
+    ComputeResources:
+    - Name: queue-1-cr-1
+      Instances:
+      - InstanceType: c5.xlarge
+      MinCount: 9
+      MaxCount: 9
+    Iam:
+      AdditionalIamPolicies:
+        - Policy: arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+    Networking:
+      SubnetIds:
+      - subnet-01cf2efa88f52c7af

@@ -8,11 +8,11 @@ HeadNode:
   Ssh:
     KeyName: {{ key_name }}
   Iam:
+    AdditionalIamPolicies:
+      - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
     S3Access:
       - BucketName: {{ bucket }}
         EnableWriteAccess: true
-    AdditionalIamPolicies:
-      - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
   Imds:
     Secured: {{ imds_secured }}
 Scheduling:
@@ -22,21 +22,15 @@ Scheduling:
       ComputeResources:
         - Name: compute
           Instances:
-            - InstanceType: c5.large # instance type has bootstrap failure
-          MinCount: 3
+            - InstanceType: {{ compute_instance }}
+          MinCount: 5
           MaxCount: 10
       Networking:
         SubnetIds:
-          - {{ private_subnet_id }}
-      CustomActions:
-        OnNodeStart:
-          Script: s3://{{ bucket }}/scripts/preinstall.sh
+          - {{ compute_subnet_id }}
       Iam:
+        AdditionalIamPolicies:
+          - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
         S3Access:
           - BucketName: {{ bucket }}
             EnableWriteAccess: true
-        AdditionalIamPolicies:
-          - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
-DevSettings:
-  Cookbook:
-    ChefCookbook: s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.6.0/cookbooks/aws-parallelcluster-cookbook-3.6.0.tgz

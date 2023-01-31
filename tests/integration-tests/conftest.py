@@ -30,7 +30,7 @@ import yaml
 from _pytest._code import ExceptionInfo
 from _pytest.fixtures import FixtureDef, SubRequest
 from cfn_stacks_factory import CfnStack, CfnStacksFactory, CfnVpcStack
-from clusters_factory import Cluster, ClustersFactory
+from clusters_factory import CLUSTER_STASH_KEY, Cluster, ClustersFactory
 from conftest_markers import (
     DIMENSIONS_MARKER_ARGS,
     add_default_markers,
@@ -64,6 +64,7 @@ from troposphere.fsx import (
     VolumeOpenZFSConfiguration,
 )
 from utils import (
+    ClusterConfiguration,
     InstanceTypesData,
     SetupError,
     create_s3_bucket,
@@ -394,20 +395,28 @@ def clusters_factory(request, region):
     factory = ClustersFactory(delete_logs_on_success=request.config.getoption("delete_logs_on_success"))
 
     def _cluster_factory(cluster_config, upper_case_cluster_name=False, custom_cli_credentials=None, **kwargs):
-        cluster_config = _write_config_to_outdir(request, cluster_config, "clusters_configs")
-        cluster = Cluster(
-            name=request.config.getoption("cluster")
+        config_path = (
+            cluster_config.output_file_path if isinstance(cluster_config, ClusterConfiguration) else cluster_config
+        )
+        config_path = _write_config_to_outdir(request, config_path, "clusters_configs")
+        cluster_name = (
+            request.config.getoption("cluster")
             if request.config.getoption("cluster")
             else "integ-tests-{0}{1}{2}".format(
                 random_alphanumeric().upper() if upper_case_cluster_name else random_alphanumeric(),
                 "-" if request.config.getoption("stackname_suffix") else "",
                 request.config.getoption("stackname_suffix"),
-            ),
-            config_file=cluster_config,
+            )
+        )
+        cluster = Cluster(
+            name=cluster_name,
+            config_file=config_path,
             ssh_key=request.config.getoption("key_path"),
             region=region,
             custom_cli_credentials=custom_cli_credentials,
         )
+        if isinstance(cluster_config, ClusterConfiguration):
+            cluster_config.request.node.stash[CLUSTER_STASH_KEY] = cluster
         if not request.config.getoption("cluster"):
             cluster.creation_response = factory.create_cluster(cluster, **kwargs)
         return cluster
@@ -587,7 +596,7 @@ def pcluster_config_reader(test_datadir, vpc_stack, request, region):
             inject_additional_config_settings(output_file_path, request, region, benchmarks)
         else:
             inject_additional_image_configs_settings(output_file_path, request)
-        return output_file_path
+        return ClusterConfiguration(output_file_path, request)
 
     return _config_renderer
 
@@ -1020,11 +1029,34 @@ def s3_bucket_key_prefix():
     return random_alphanumeric()
 
 
+def _report_cluster(cluster):
+    logging.warning("Retrieving health events for failed test from %s...", cluster.name)
+    try:
+        events = []
+        for event in cluster.get_health_events(log_level=logging.WARNING):
+            logging.info("Health Event(%s): %s", cluster.name, event)
+            events.append(event)
+        return events
+    except Exception as e:
+        logging.error("Failed to stash cluster health events: %s", e)
+
+
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     """Making test result information available in fixtures"""
     # add dimension properties to report
     _add_properties_to_report(item)
+
+    events = []
+    if call and call.excinfo:
+        try:
+            cluster = item.stash.get(CLUSTER_STASH_KEY, None)
+            if cluster:
+                events = _report_cluster(cluster)
+            else:
+                logging.info("Test has no cluster")
+        except Exception as e:
+            logging.error("Failed to access stash: %s\n---\n%s", e, dir(item))
 
     # execute all other hooks to obtain the report object
     outcome = yield
@@ -1034,6 +1066,13 @@ def pytest_runtest_makereport(item, call):
     setattr(item, "rep_" + rep.when, rep)
 
     if rep.when in ["setup", "call"] and rep.failed:
+        long_report = rep.longrepr
+        value = "\n".join(
+            f"{event['level']} - {event['event-type']} - {event['component']} - {event['message']} - {event['detail']}"
+            for event in events
+        )
+        long_report.addsection("Cluster Health Events", value)
+
         exception_info: ExceptionInfo = call.excinfo
         if exception_info.value and isinstance(exception_info.value, SetupError):
             rep.when = "setup"

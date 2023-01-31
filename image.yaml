@@ -1,0 +1,5 @@
+Build:
+  InstanceType: c6i.4xlarge
+  ParentImage: ami-0b485f61d20e08815 #replace with newest Amazon Linux 2 Deep Learning AMI id
+  UpdateOsPackages:
+    Enabled: true
