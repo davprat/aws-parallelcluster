@@ -1,0 +1,36 @@
+Image:
+  Os: {{ os }}
+CustomS3Bucket: {{ bucket }}
+HeadNode:
+  InstanceType: {{ instance }}
+  Networking:
+    SubnetId: {{ public_subnet_id }}
+  Ssh:
+    KeyName: {{ key_name }}
+  Iam:
+    AdditionalIamPolicies:
+      - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
+    S3Access:
+      - BucketName: {{ bucket }}
+        EnableWriteAccess: true
+  Imds:
+    Secured: {{ imds_secured }}
+Scheduling:
+  Scheduler: {{ scheduler }}
+  SlurmQueues:
+    - Name: queue
+      ComputeResources:
+        - Name: compute
+          Instances:
+            - InstanceType: {{ compute_instance }}
+          MinCount: 5
+          MaxCount: 10
+      Networking:
+        SubnetIds:
+          - {{ compute_subnet_id }}
+      Iam:
+        AdditionalIamPolicies:
+          - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
+        S3Access:
+          - BucketName: {{ bucket }}
+            EnableWriteAccess: true

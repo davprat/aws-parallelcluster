@@ -11,6 +11,8 @@ HeadNode:
     S3Access:
       - BucketName: {{ bucket }}
         EnableWriteAccess: true
+    AdditionalIamPolicies:
+      - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
   Imds:
     Secured: {{ imds_secured }}
 Scheduling:
@@ -37,3 +39,8 @@ Scheduling:
         S3Access:
           - BucketName: {{ bucket }}
             EnableWriteAccess: true
+        AdditionalIamPolicies:
+          - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
+DevSettings:
+  Cookbook:
+    ChefCookbook: s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.5.0/cookbooks/aws-parallelcluster-cookbook-3.5.0.tgz
