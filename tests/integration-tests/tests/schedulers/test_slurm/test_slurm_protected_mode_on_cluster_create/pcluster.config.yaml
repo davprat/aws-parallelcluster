@@ -43,4 +43,4 @@ Scheduling:
           - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
 DevSettings:
   Cookbook:
-    ChefCookbook: s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.5.0/cookbooks/aws-parallelcluster-cookbook-3.5.0.tgz
+    ChefCookbook: s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.6.0/cookbooks/aws-parallelcluster-cookbook-3.6.0.tgz
