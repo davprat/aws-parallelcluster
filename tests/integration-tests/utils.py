@@ -61,7 +61,7 @@ class SetupError(BaseException):
                 [
                     f"* {event.get('LogicalResourceId')}:\n\t\t{event.get('ResourceStatusReason')}"
                     for event in stack_events
-                    if event.get("ResourceStatus") == "CREATE_FAILED"
+                    if event["ResourceStatus"] == "CREATE_FAILED"
                 ]
             )
             formatted_message += f"\n\n- Stack Events:\n\t{events_string}"
@@ -484,7 +484,6 @@ def check_head_node_security_group(region, cluster, port, expected_cidr):
 def check_status(cluster, cluster_status=None, head_node_status=None, compute_fleet_status=None):
     """Check the cluster's status and its head and compute status is as expected."""
     cluster_info = cluster.describe_cluster()
-    logging.info("Cluster Info: %s", cluster_info)
     if cluster_status:
         assert_that(cluster_info["clusterStatus"]).is_equal_to(cluster_status)
     if head_node_status:
