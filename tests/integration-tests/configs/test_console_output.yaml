@@ -1,0 +1,69 @@
+{%- import 'common.jinja2' as common -%}
+---
+test-suites:
+  schedulers:
+    test_integration_failures.py::test_cluster_create_failure:
+      dimensions:
+        - regions: ["us-east-1"]
+          instances: ["c5.large"]
+          oss: ["alinux2"]
+          schedulers: ["slurm"]
+    test_integration_failures.py::test_cluster_failure:
+      dimensions:
+        - regions: ["us-east-1"]
+          instances: ["c5.large"]
+          oss: ["alinux2"]
+          schedulers: ["slurm"]
+#    test_clusters.py::test_ice_failure:
+#      dimensions:
+#          - regions: ["eu-west-2"]
+#            instances: ["c5.large"]
+#            oss: ["alinux2"]
+#            schedulers: ["slurm"]
+#    test_slurm.py::test_slurm:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          instances: ["c5.large"]
+#          oss: ["alinux2"]
+#          schedulers: ["slurm"]
+#    test_slurm.py::test_slurm_protected_mode_on_cluster_create:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          instances: ["c5.large"]
+#          oss: ["alinux2"]
+#          schedulers: ["slurm"]
+#  cloudwatch_logging:
+#    test_compute_console_output_logging.py::test_compute_console_logging:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: ["alinux2"]
+#          instances: ["c5.xlarge"]
+#          schedulers: ["slurm"]
+#    test_compute_console_output_logging.py::test_custom_action_error:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: ["alinux2"]
+#          instances: ["c5.xlarge"]
+#          schedulers: ["slurm"]
+#    test_compute_console_output_logging.py::test_console_output_with_monitoring_disabled:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: ["alinux2"]
+#          instances: ["c5.xlarge"]
+#          schedulers: ["slurm"]
+#    test_compute_console_output_logging.py::test_console_output_with_monitoring_disabled:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          instances: {{ common.INSTANCES_DEFAULT_X86 }}
+#          oss: ["alinux2"]
+#          schedulers: ["slurm"]
+#    test_compute_console_output_logging.py::test_custom_action_error:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: {{ common.OSS_COMMERCIAL_X86 }}
+#          instances: {{ common.INSTANCES_DEFAULT_X86 }}
+#          schedulers: ["slurm"]
+#        - regions: ["us-east-1"]
+#          instances: {{ common.INSTANCES_DEFAULT_ARM }}
+#          oss: {{ common.OSS_COMMERCIAL_ARM }}
+#          schedulers: ["slurm"]
