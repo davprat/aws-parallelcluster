@@ -73,6 +73,24 @@ def subnet_factory(region, vpc_stack):
 
 @pytest.mark.usefixtures("region", "os", "instance", "scheduler")
 @pytest.mark.test_slurm_protected_mode_on_cluster_create
+def test_cluster_creation(
+    pcluster_config_reader,
+    clusters_factory,
+    test_datadir,
+    s3_bucket_factory,
+):
+    # Create S3 bucket for pre-install scripts
+    bucket_name = s3_bucket_factory()
+
+    # Create S3 bucket for pre-install scripts
+    cluster_config = pcluster_config_reader(
+        bucket=bucket_name,
+    )
+    clusters_factory(cluster_config)
+
+
+@pytest.mark.usefixtures("region", "os", "instance", "scheduler")
+@pytest.mark.test_slurm_protected_mode_on_cluster_create
 def test_ice_failure(
     pcluster_config_reader,
     clusters_factory,
