@@ -4,16 +4,22 @@ test-suites:
   schedulers:
     test_integration_failures.py::test_cluster_create_failure:
       dimensions:
-        - regions: ["us-east-1"]
+        - regions: ["ap-south-1"]
           instances: ["c5.large"]
           oss: ["alinux2"]
           schedulers: ["slurm"]
-    test_integration_failures.py::test_cluster_failure:
-      dimensions:
-        - regions: ["us-east-1"]
-          instances: ["c5.large"]
-          oss: ["alinux2"]
-          schedulers: ["slurm"]
+#    test_integration_failures.py::test_cluster_create_failure:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          instances: ["c5.large"]
+#          oss: ["alinux2"]
+#          schedulers: ["slurm"]
+#    test_integration_failures.py::test_cluster_failure:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          instances: ["c5.large"]
+#          oss: ["alinux2"]
+#          schedulers: ["slurm"]
 #    test_clusters.py::test_ice_failure:
 #      dimensions:
 #          - regions: ["eu-west-2"]
