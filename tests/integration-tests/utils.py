@@ -40,17 +40,22 @@ PARTITION_MAP = {
 
 def _format_stack_error(message, stack_events=None, cluster_details=None) -> str:
     if cluster_details:
-        details_string = "\n\t".join(
-            [
-                f"* {failure['failureCode']}:\n\t\t{failure.get('failureReason')}"
-                for failure in cluster_details.get("failures")
-            ],
-        )
-        message += f"\n\n- Cluster Errors:\n\t{details_string}"
+        if "message" in cluster_details:
+            message += f"\n\n- Message:\n\t{cluster_details.get('message')}"
+
+        if "failures" in cluster_details:
+            details_string = "\n\t".join(
+                [
+                    f"* {failure.get('failureCode')}:\n\t\t{failure.get('failureReason')}"
+                    for failure in cluster_details.get("failures")
+                ],
+            )
+            message += f"\n\n- Cluster Errors:\n\t{details_string}"
+
     if stack_events:
         events_string = "\n\t".join(
             [
-                f"* {event['LogicalResourceId']}:\n\t\t{event.get('ResourceStatusReason')}"
+                f"* {event.get('LogicalResourceId')}:\n\t\t{event.get('ResourceStatusReason')}"
                 for event in stack_events
                 if event.get("ResourceStatus") == "CREATE_FAILED"
             ]

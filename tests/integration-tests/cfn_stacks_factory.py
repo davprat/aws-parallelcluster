@@ -15,11 +15,16 @@ from collections import OrderedDict
 import boto3
 from assertpy import assert_that
 from botocore.exceptions import ClientError
-from retrying import retry
-
 from framework.credential_providers import aws_credential_provider
-from utils import StackError, StackSetupError, get_cfn_events, retrieve_cfn_outputs, retrieve_cfn_resources
-from utils import to_pascal_from_kebab_case
+from retrying import retry
+from utils import (
+    StackError,
+    StackSetupError,
+    get_cfn_events,
+    retrieve_cfn_outputs,
+    retrieve_cfn_resources,
+    to_pascal_from_kebab_case,
+)
 
 
 class CfnStack:
