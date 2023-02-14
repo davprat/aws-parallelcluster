@@ -450,7 +450,11 @@ class ClustersFactory:
                     logging.info("Cluster {0} created successfully".format(name))
                     cluster.mark_as_created()
             else:
+                if raise_on_error and result.returncode:
+                    error = f"Cluster creation failed for {name} with error: {result.stderr}"
+                    raise ClusterCreationError(error, cluster_details=response)
                 logging.info("Cluster {0} creation started successfully".format(name))
+
             return response
         finally:
             # Only add cluster to created_clusters if stack creation started
