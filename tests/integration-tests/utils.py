@@ -50,7 +50,8 @@ def _format_stack_error(message, stack_events=None, cluster_details=None) -> str
                     for failure in cluster_details.get("failures")
                 ],
             )
-            message += f"\n\n- Cluster Errors:\n\t{details_string}"
+            if details_string:
+                message += f"\n\n- Cluster Errors:\n\t{details_string}"
 
     if stack_events:
         events_string = "\n\t".join(
@@ -60,7 +61,8 @@ def _format_stack_error(message, stack_events=None, cluster_details=None) -> str
                 if event.get("ResourceStatus") == "CREATE_FAILED"
             ]
         )
-        message += f"\n\n- Stack Events:\n\t{events_string}"
+        if events_string:
+            message += f"\n\n- Stack Events:\n\t{events_string}"
     return message
 
 
