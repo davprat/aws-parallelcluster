@@ -101,7 +101,7 @@ class StackSetupError(SetupError):
 class ClusterCreationError(SetupError):
     """Exception to throw when cluster creation fails during test setup."""
 
-    def __init__(self, message, stack_events, cluster_details):
+    def __init__(self, message, stack_events=None, cluster_details=None):
         message = message if message else "ClusterCreationError has been raised"
         super().__init__(_format_stack_error(message, stack_events=stack_events, cluster_details=cluster_details))
 

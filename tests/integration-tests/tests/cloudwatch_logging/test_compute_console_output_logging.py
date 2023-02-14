@@ -85,23 +85,8 @@ def _verify_iam_role_allows_get_console_output(cluster):
 def test_compute_console_logging(
     pcluster_config_reader,
     clusters_factory,
-    test_datadir,
-    s3_bucket,
-    region,
 ):
-    bucket_name = s3_bucket
-    bucket = boto3.resource("s3", region_name=region).Bucket(bucket_name)
-    script = "on_node_start.sh"
-    script_path = f"test_compute_console_logging/{script}"
-    bucket.upload_file(str(test_datadir / script), script_path)
-
-    compute_script = "on_compute_start.sh"
-    compute_script_path = f"test_compute_console_logging/{compute_script}"
-    bucket.upload_file(str(test_datadir / compute_script), compute_script_path)
-
-    cluster_config = pcluster_config_reader(
-        bucket=bucket_name, script_path=script_path, compute_script_path=compute_script_path
-    )
+    cluster_config = pcluster_config_reader()
     cluster = clusters_factory(cluster_config, raise_on_error=False, wait=False)
 
     _verify_compute_console_output_log_exists_in_log_group(cluster)
@@ -151,7 +136,7 @@ def test_custom_action_error(
     bucket.upload_file(str(test_datadir / script), script_path)
 
     cluster_config = pcluster_config_reader(bucket=bucket_name, script_path=script_path)
-    cluster: Cluster = clusters_factory(cluster_config, raise_on_error=False, wait=False)
+    cluster: Cluster = clusters_factory(cluster_config, raise_on_error=True, wait=False)
 
     _verify_compute_console_output_log_exists_in_log_group(cluster)
 
