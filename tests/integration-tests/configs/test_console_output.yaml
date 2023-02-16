@@ -44,13 +44,13 @@ test-suites:
 #          instances: ["c5.large"]
 #          oss: ["alinux2"]
 #          schedulers: ["slurm"]
-  cloudwatch_logging:
-    test_compute_console_output_logging.py::test_custom_action_error:
-      dimensions:
-        - regions: ["us-east-1"]
-          oss: ["alinux2"]
-          instances: ["c5.xlarge"]
-          schedulers: ["slurm"]
+#  cloudwatch_logging:
+#    test_compute_console_output_logging.py::test_custom_action_error:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: ["alinux2"]
+#          instances: ["c5.xlarge"]
+#          schedulers: ["slurm"]
 #    test_compute_console_output_logging.py::test_compute_console_logging:
 #      dimensions:
 #        - regions: ["us-east-1"]
@@ -79,83 +79,83 @@ test-suites:
 #          instances: {{ common.INSTANCES_DEFAULT_ARM }}
 #          oss: {{ common.OSS_COMMERCIAL_ARM }}
 #          schedulers: ["slurm"]
-  networking:
-    test_cluster_networking.py::test_cluster_in_private_subnet:
-      dimensions:
-        - regions: ["us-east-1"]
-          oss: ["alinux2"]
-          instances: ["c5.xlarge"]
-          schedulers: ["slurm"]
-    test_cluster_networking.py::test_existing_eip:
-      dimensions:
-        - regions: ["us-east-1"]
-          oss: ["alinux2"]
-          instances: ["c5.xlarge"]
-          schedulers: ["slurm"]
-    test_networking.py::test_public_network_topology:
-      dimensions:
-        - regions: ["us-east-1"]
-    test_networking.py::test_public_private_network_topology:
-      dimensions:
-        - regions: ["us-east-1"]
-    test_cluster_networking.py::test_cluster_in_no_internet_subnet:
-      dimensions:
-        - regions: ["us-east-1"]
-          oss: ["alinux2"]
-          instances: ["c5.xlarge"]
-          schedulers: ["slurm"]
-    test_multi_cidr.py::test_multi_cidr:
-      dimensions:
-        - regions: ["us-east-1"]
-          oss: ["alinux2"]
-          instances: ["c5.xlarge"]
-          schedulers: ["slurm"]
-    test_security_groups.py::test_additional_sg_and_ssh_from:
-      dimensions:
-        - regions: ["us-east-1"]
-          oss: ["alinux2"]
-          instances: ["c5.xlarge"]
-          schedulers: ["slurm"]
-    test_security_groups.py::test_overwrite_sg:
-      dimensions:
-        - regions: ["us-east-1"]
-          oss: ["alinux2"]
-          instances: ["c5.xlarge"]
-          schedulers: ["slurm"]
+#  networking:
+#    test_cluster_networking.py::test_cluster_in_private_subnet:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: ["alinux2"]
+#          instances: ["c5.xlarge"]
+#          schedulers: ["slurm"]
+#    test_cluster_networking.py::test_existing_eip:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: ["alinux2"]
+#          instances: ["c5.xlarge"]
+#          schedulers: ["slurm"]
+#    test_networking.py::test_public_network_topology:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#    test_networking.py::test_public_private_network_topology:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#    test_cluster_networking.py::test_cluster_in_no_internet_subnet:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: ["alinux2"]
+#          instances: ["c5.xlarge"]
+#          schedulers: ["slurm"]
+#    test_multi_cidr.py::test_multi_cidr:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: ["alinux2"]
+#          instances: ["c5.xlarge"]
+#          schedulers: ["slurm"]
+#    test_security_groups.py::test_additional_sg_and_ssh_from:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: ["alinux2"]
+#          instances: ["c5.xlarge"]
+#          schedulers: ["slurm"]
+#    test_security_groups.py::test_overwrite_sg:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: ["alinux2"]
+#          instances: ["c5.xlarge"]
+#          schedulers: ["slurm"]
   create:
     test_create.py::test_create_wrong_os:
       dimensions:
         - regions: ["us-east-1"]
-          oss: ["alinux2"]
+          oss: ["ubuntu1804"]  # os must be different from ubuntu2004 to test os validation logic when wrong os is provided
           instances: ["c5.xlarge"]
           schedulers: ["slurm"]
-    test_create.py::test_create_wrong_pcluster_version:
-      dimensions:
-        - regions: ["us-east-1"]
-          oss: ["alinux2"]
-          instances: ["c5.xlarge"]
-          schedulers: ["slurm"]
-    test_create.py::test_create_imds_secured:
-      dimensions:
-        - regions: ["us-east-1"]
-          oss: ["alinux2"]
-          instances: ["c5.xlarge"]
-          schedulers: ["slurm"]
-    test_create.py::test_cluster_creation_with_problematic_preinstall_script:
-      dimensions:
-        - regions: [ "us-east-1" ]
-          oss: [ "alinux2" ]
-          instances: [ "c5.xlarge" ]
-          schedulers: [ "slurm" ]
-    test_create.py::test_cluster_creation_timeout:
-      dimensions:
-        - regions: ["us-east-1"]
-          oss: ["alinux2"]
-          instances: ["c5.xlarge"]
-          schedulers: ["slurm"]
-    test_create.py::test_cluster_creation_with_invalid_ebs:
-      dimensions:
-        - regions: ["us-east-1"]
-          oss: ["alinux2"]
-          instances: ["c5.xlarge"]
-          schedulers: ["slurm"]
+#    test_create.py::test_create_wrong_pcluster_version:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: ["alinux2"]
+#          instances: ["c5.xlarge"]
+#          schedulers: ["slurm"]
+#    test_create.py::test_create_imds_secured:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: ["alinux2"]
+#          instances: ["c5.xlarge"]
+#          schedulers: ["slurm"]
+#    test_create.py::test_cluster_creation_with_problematic_preinstall_script:
+#      dimensions:
+#        - regions: [ "us-east-1" ]
+#          oss: [ "alinux2" ]
+#          instances: [ "c5.xlarge" ]
+#          schedulers: [ "slurm" ]
+#    test_create.py::test_cluster_creation_timeout:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: ["alinux2"]
+#          instances: ["c5.xlarge"]
+#          schedulers: ["slurm"]
+#    test_create.py::test_cluster_creation_with_invalid_ebs:
+#      dimensions:
+#        - regions: ["us-east-1"]
+#          oss: ["alinux2"]
+#          instances: ["c5.xlarge"]
+#          schedulers: ["slurm"]
