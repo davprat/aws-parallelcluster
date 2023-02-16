@@ -72,7 +72,7 @@ def subnet_factory(region, vpc_stack):
 
 
 @pytest.mark.usefixtures("region", "os", "instance", "scheduler")
-@pytest.mark.test_slurm_protected_mode_on_cluster_create
+@pytest.mark.test_cluster_creation
 def test_cluster_creation(
     pcluster_config_reader,
     clusters_factory,
@@ -90,7 +90,7 @@ def test_cluster_creation(
 
 
 @pytest.mark.usefixtures("region", "os", "instance", "scheduler")
-@pytest.mark.test_slurm_protected_mode_on_cluster_create
+@pytest.mark.test_ice_failure
 def test_ice_failure(
     pcluster_config_reader,
     clusters_factory,
@@ -111,121 +111,3 @@ def test_ice_failure(
         bucket=bucket_name,
     )
     cluster = clusters_factory(cluster_config)
-
-    """
-
-{'Subnet': {'AvailabilityZone': 'us-east-1e',
-        'AvailabilityZoneId': 'use1-az3',
-        'AvailableIpAddressCount': 507,
-        'CidrBlock': '192.168.2.0/23',
-        'DefaultForAz': False,
-        'MapPublicIpOnLaunch': False,
-        'State': 'available',
-        'SubnetId': 'subnet-0ffb1eb350e959798',
-        'VpcId': 'vpc-03cde5ccfe8e2425e',
-        'OwnerId': '439493970194',
-        'AssignIpv6AddressOnCreation': False,
-        'Ipv6CidrBlockAssociationSet': [],
-        'SubnetArn': 'arn:aws:ec2:us-east-1:439493970194:subnet/subnet-0ffb1eb350e959798',
-        'EnableDns64': False,
-        'Ipv6Native': False,
-        'PrivateDnsNameOptionsOnLaunch': {'HostnameType': 'ip-name',
-                                          'EnableResourceNameDnsARecord': False,
-                                          'EnableResourceNameDnsAAAARecord': False
-                                          }
-      },
-'ResponseMetadata': {'RequestId': '2b4258c8-c1e8-47d1-848c-3ff11f8f5645',
-                  'HTTPStatusCode': 200,
-                  'HTTPHeaders': {'x-amzn-requestid': '2b4258c8-c1e8-47d1-848c-3ff11f8f5645',
-                                  'cache-control': 'no-cache, no-store',
-                                  'strict-transport-security': 'max-age=31536000; '
-                                                               'includeSubDomains',
-                                  'content-type': 'text/xml;charset=UTF-8',
-                                  'content-length': '1305',
-                                  'date': 'Fri, 03 Feb 2023 19:44:06 GMT',
-                                  'server': 'AmazonEC2'},
-                  'RetryAttempts': 0}}
-
-"NatRoutePrivate": {
-"Properties": {
-"DestinationCidrBlock": "0.0.0.0/0",
-"NatGatewayId": {
- "Ref": "NatGatewayPublic"
-},
-"RouteTableId": {
- "Ref": "RouteTablePrivate"
-}
-},
-"Type": "AWS::EC2::Route"
-},
-
-"RouteAssociationPrivate": {
-"Properties": {
-"RouteTableId": {
- "Ref": "RouteTablePrivate"
-},
-"SubnetId": {
- "Ref": "Private"
-}
-},
-"Type": "AWS::EC2::SubnetRouteTableAssociation"
-},
-
-{'AssociationId': 'rtbassoc-0295fe21ccd52e6b2',
-'AssociationState': {'State': 'associated'},
-'ResponseMetadata': {'RequestId': '02448dd0-c5c8-4d05-b7ca-3d572018bdb7',
-                  'HTTPStatusCode': 200,
-                  'HTTPHeaders': {'x-amzn-requestid': '02448dd0-c5c8-4d05-b7ca-3d572018bdb7',
-                                  'cache-control': 'no-cache, no-store',
-                                  'strict-transport-security': 'max-age=31536000; '
-                                                               'includeSubDomains',
-                                  'content-type': 'text/xml;charset=UTF-8',
-                                  'content-length': '356',
-                                  'date': 'Fri, 03 Feb 2023 20:23:41 GMT',
-                                  'server': 'AmazonEC2'},
-                  'RetryAttempts': 0}}
-
-{'RouteTable': {'Associations': [],
-            'PropagatingVgws': [],
-            'RouteTableId': 'rtb-0b6e2bf32f71911bf',
-            'Routes': [{'DestinationCidrBlock': '192.168.0.0/17',
-                        'GatewayId': 'local',
-                        'Origin': 'CreateRouteTable',
-                        'State': 'active'},
-                       {'DestinationCidrBlock': '192.168.128.0/17',
-                        'GatewayId': 'local',
-                        'Origin': 'CreateRouteTable',
-                        'State': 'active'}],
-            'Tags': [],
-            'VpcId': 'vpc-03cde5ccfe8e2425e',
-            'OwnerId': '439493970194'},
-'ResponseMetadata': {'RequestId': 'fd437833-fa5c-48e2-828f-201b51af0cd3',
-                  'HTTPStatusCode': 200,
-                  'HTTPHeaders': {'x-amzn-requestid': 'fd437833-fa5c-48e2-828f-201b51af0cd3',
-                                  'cache-control': 'no-cache, no-store',
-                                  'strict-transport-security': 'max-age=31536000; '
-                                                               'includeSubDomains',
-                                  'content-type': 'text/xml;charset=UTF-8',
-                                  'content-length': '996',
-                                  'date': 'Fri, 03 Feb 2023 20:09:39 GMT',
-                                  'server': 'AmazonEC2'},
-                  'RetryAttempts': 0}}
-
-resource = cfn.describe_stack_resources(StackName="integ-tests-vpc-qeklf3qgcr0bxny6", LogicalResourceId="NatGatewayPublic")
-{'StackResources': [{'StackName': 'integ-tests-vpc-qeklf3qgcr0bxny6',
-                 'StackId': 'arn:aws:cloudformation:us-east-1:439493970194:stack/integ-tests-vpc-qeklf3qgcr0bxny6/2ad4ed30-80a5-11ed-9c5e-12dcfcb90ced',
-                 'LogicalResourceId': 'NatGatewayPublic',
-                 'PhysicalResourceId': 'nat-0d03ddab42332ecbe',
-                 'ResourceType': 'AWS::EC2::NatGateway',
-                 'Timestamp': datetime.datetime(2022, 12, 20, 20, 33, 16, 984000, tzinfo=tzutc()),
-                 'ResourceStatus': 'CREATE_COMPLETE',
-                 'DriftInformation': {'StackResourceDriftStatus': 'NOT_CHECKED'}}],
-'ResponseMetadata': {'RequestId': '715661b0-eed6-4d4f-88ba-a8a08ba791d0',
-                  'HTTPStatusCode': 200,
-                  'HTTPHeaders': {'x-amzn-requestid': '715661b0-eed6-4d4f-88ba-a8a08ba791d0',
-                                  'date': 'Fri, 03 Feb 2023 19:58:49 GMT',
-                                  'content-type': 'text/xml',
-                                  'content-length': '1024'},
-                  'RetryAttempts': 0}}
-
-    """
