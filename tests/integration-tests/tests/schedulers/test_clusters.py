@@ -137,4 +137,3 @@ def test_capacity_failover(
 ):
     cluster_config = pcluster_config_reader(custom_subnet="subnet-02fa792516ee48d6f")
     clusters_factory(cluster_config)
-

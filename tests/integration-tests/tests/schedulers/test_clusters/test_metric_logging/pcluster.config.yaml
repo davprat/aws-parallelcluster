@@ -27,7 +27,7 @@ Scheduling:
       ComputeResources:
         - Name: compute-a
           Instances:
-            - InstanceType: g5.xlarge
+            - InstanceType: c5.xlarge
           MinCount: 0
           MaxCount: 500
           HealthChecks:
@@ -40,6 +40,7 @@ Scheduling:
         AdditionalIamPolicies:
           - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
           - Policy: arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+          - Policy: arn:aws:iam::439493970194:policy/parallelcluster-create-tags-policy
       CustomActions:
         OnNodeStart:
           Sequence:
@@ -60,6 +61,7 @@ Scheduling:
         AdditionalIamPolicies:
           - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
           - Policy: arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+          - Policy: arn:aws:iam::439493970194:policy/parallelcluster-create-tags-policy
       CustomActions:
         OnNodeStart:
           Sequence:
@@ -83,6 +85,7 @@ Scheduling:
         AdditionalIamPolicies:
           - Policy: arn:aws:iam::aws:policy/AmazonSSMFullAccess
           - Policy: arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+          - Policy: arn:aws:iam::439493970194:policy/parallelcluster-create-tags-policy
       CustomActions:
         OnNodeStart:
           Sequence:
