@@ -1,0 +1,212 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AWS ParallelCluster Observability Master CloudFormation Stack
+
+Parameters:
+
+  ManagedClusters:
+    Description: Comma separated list of cluster names to  manage
+    Type: String
+    Default: ''
+
+Mappings:
+  Observability:
+    Constants:
+      StackVersion: '2023-06-01'
+      Bucket: '' # For debug purposes only
+      KeyPrefix: 'parallelcluster/observability'
+  ParallelCluster:
+    Constants:
+      Version: 3.7.0
+      Bucket: '' # For debug purposes only
+
+Conditions:
+  UseCustomBucket: !Not [!Equals [!FindInMap [ParallelCluster, Constants, Bucket], '']]
+  UseCustomManager: !Not [!Equals [!FindInMap [Observability, Constants, Bucket], '']]
+  GovCloud: !Equals [!Ref AWS::Partition, 'aws-us-gov']
+  China: !Equals [!Ref AWS::Partition, 'aws-cn']
+
+Resources:
+  PClusterLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub
+        - PCLayer-${StackIdSuffix}
+        - { StackIdSuffix: !Select [2, !Split ['/', !Ref 'AWS::StackId']] }
+      Description: Library which contains aws-parallelcluster python package and dependencies
+      Content:
+        S3Bucket: !If [ UseCustomBucket, !FindInMap [ParallelCluster, Constants, Bucket], !Sub "${AWS::Region}-aws-parallelcluster" ]
+        S3Key: !Sub
+          - parallelcluster/${Version}/layers/aws-parallelcluster/lambda-layer.zip
+          - { Version: !FindInMap [ParallelCluster, Constants, Version] }
+      CompatibleRuntimes:
+        - python3.9
+
+  PClusterPolicies:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub
+        - https://${Bucket}.s3.${Region}.amazonaws.com/parallelcluster/${Version}/templates/policies/policies.yaml
+        - { Version: !FindInMap [ParallelCluster, Constants, Version ],
+            Bucket: !If [UseCustomBucket, !FindInMap [ParallelCluster, Constants, Bucket], !Sub "${AWS::Region}-aws-parallelcluster" ],
+            Region: !Ref AWS::Region }
+      TimeoutInMinutes: 10
+      Parameters:
+        EnableIamAdminAccess: true
+
+  EventsPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EventsPolicy
+            Effect: Allow
+            Action:
+              - events:PutRule
+              - events:DeleteRule
+              - events:PutTargets
+              - events:RemoveTargets
+            Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*
+
+  CloudFormationPolicy:
+    Type: AWS::IAM:ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: CloudFormationCreate
+            Effect: Allow
+            Action:
+              - cloudformation:CreateStack
+            Resource: !Sub
+              - arn:*:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
+            Condition:
+              ForAnyValue:StringEquals:
+                aws:TagKeys: [ "parallelcluster:cluster-name" ]
+          - Sid: CloudFormationUpdateAndDelete
+            Effect: Allow
+            Action:
+              - cloudformation:UpdateStack
+              - cloudformation:DeleteStack
+            Resource: !Sub
+              - arn:*:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
+            Condition:
+              ForAnyValue:StringLike:
+                aws:ResourceTag/parallelcluster:cluster-name: "*"
+          - Sid: CloudFormationRead
+            Effect: Allow
+            Action:
+              - cloudformation:DescribeStacks
+              - cloudformation:DescribeStackEvents
+              - cloudformation:DescribeStackResources
+              - cloudformation:GetTemplate
+              - cloudformation:ListStacks
+            Resource: !Sub
+              - arn:*:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*
+
+  S3Policy:
+    Type: AWS::IAM:ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: S3ReadOnly
+            Effect: Allow
+            Action:
+              - s3:List*
+              - s3:Get*
+            Resource: !Sub arn:${AWS::Partition}:s3:::${AWS::Region}-aws-parallelcluster*
+            Condition:
+              StringEquals:
+                aws:RequestedRegion:
+                  - !Sub ${AWS::Region}
+
+  CloudWatchLogsPolicy:
+    Type: AWS::IAM:ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: LogsWriteOnly
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*
+
+  PClusterCfnFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    Properties:
+      RetentionInDays: 90
+      LogGroupName: !Sub /aws/lambda/${PClusterCfnFunction}
+
+  PClusterLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal:
+              Service: lambda.amazonaws.com
+      ManagedPolicyArns: !Split
+        - ","
+        - !Sub
+          - ${LambdaExecutionPolicy},${ClusterPolicy},${DefaultAdminPolicy},${EventsPolicy}${CloudFormationPolicy},${S3Policy},${CloudWatchLogsPolicy}
+          - { LambdaExecutionPolicy: !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              ClusterPolicy: !GetAtt [ PClusterPolicies, Outputs.ParallelClusterClusterPolicy ],
+              DefaultAdminPolicy: !GetAtt [ PClusterPolicies, Outputs.DefaultParallelClusterIamAdminPolicy ],
+              EventsPolicy: !Ref EventsPolicy,
+              CloudFormationPolicy: !Ref CloudFormationPolicy,
+              S3Policy: !Ref S3Policy,
+              CloudWatchLogsPolicy: !Ref CloudWatchLogsPolicy }
+
+  PClusterPublisherBuilderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Tags:
+        - Key: "parallelcluster:version"
+          Value: !FindInMap [ParallelCluster, Constants, Version]
+        - Key: "parallelcluster:observability"
+          Value: "custom_resource"
+      FunctionName: !Sub
+        - pcluster-cfn-${StackIdSuffix}
+        - { StackIdSuffix: !Select [2, !Split ['/', !Ref 'AWS::StackId']] }
+      TracingConfig:
+        Mode: Active
+      MemorySize: 2048
+      Timeout: 60
+      Code:
+        S3Bucket: !If [ UseCustomManager, !FindInMap [Observability, Constants, Bucket], !Sub "${AWS::Region}-aws-parallelcluster" ]
+        S3Key: !Sub
+          - ${KeyPrefix}/${StackVersion}/${Version}/functions/observability_stack.zip
+          - { KeyPrefix: !FindInMap [Observability, Constants, KeyPrefix],
+              StackVersion: !FindInMap [Observability, Constants, Version],
+              Version: !FindInMap [ParallelCluster, Constants, Version] }
+      Handler: index.handler
+      Runtime: python3.9
+      Role: !GetAtt PClusterLambdaRole.Arn
+      Layers:
+        - !Ref PClusterLayer
+
+  PClusterObservabilityPublisher:
+    Type: Custom::PClusterObservabilityPublisher
+    Properties:
+      ServiceToken: !GetAtt PClusterPublisherBuilderFunction.Arn
+      ClusterList: !Ref ManagedClusters
+      ObservabilityStackVersion: !FindInMap [Observability, Constants, Version]
+      ObservabilityBucket: !If [ UseCustomManager, !FindInMap [Observability, Constants, Bucket], !Sub "${AWS::Region}-aws-parallelcluster" ]
+      S3TemplateKey: !Sub
+        - ${KeyPrefix}/${StackVersion}/${Version}/templates/log_publisher_stack.yaml
+        - { KeyPrefix: !FindInMap [Observability, Constants, KeyPrefix],
+            StackVersion: !FindInMap [Observability, Constants, Version],
+            Version: !FindInMap [ParallelCluster, Constants, Version] }
+      PCBucket: !If [ UseCustomBucket, !FindInMap [ParallelCluster, Constants, Bucket], !Sub "${AWS::Region}-aws-parallelcluster" ]
+      OpenSearchDomainEndpoint: 'search-attempt-2-fuiibt552da2aaf5so3hufaawq.us-east-1.es.amazonaws.com'
+      OpenSearchDomainArn: 'arn:aws:es:us-east-1:439493970194:domain/attempt-2'
+      LogIndexPrefix: 'parallelcluster-logs-'
+      JobInfoIndexPrefix: 'parallelcluster-jobinfo-'
+      S3KeyPrefix: !FindInMap [Observability, Constants, KeyPrefix]

@@ -20,6 +20,9 @@ HeadNode:
         - Script: s3://aws-parallel-cluster-davprat-scratch-pad/custom_scripts/on_node_start.sh
           Args:
             - "s3://davprat-aws-parallelcluster-cookbook-development/parallelcluster/3.7.0/node/aws-parallelcluster-node-3.7.0.tgz"
+    OnNodeConfigured:
+      Sequence:
+        - Script: s3://aws-parallel-cluster-davprat-scratch-pad/custom_scripts/on_node_configured.sh
 Scheduling:
   Scheduler: {{ scheduler }}
   SlurmQueues:

@@ -1,0 +1,195 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AWS ParallelCluster Observability Log Publisher CloudFormation Stack
+
+Parameters:
+
+  ClusterName:
+    Description: Name of cluster
+    Type: String
+    Default: ''
+
+  ClusterVersion:
+    Description: Version of cluster
+    Type: String
+    Default: ''
+
+  ObservabilityStackVersion:
+    Description: Version of observability stack
+    Type: String
+    Default: ''
+
+  ParallelClusterBucket:
+    Description: Bucket for ParallelCluster resources
+    Type: String
+    Default: ''
+
+  ObservabilityBucket:
+    Description: Bucket for Observability resources.
+    Type: String
+    Default: ''
+
+  ClusterLogGroup:
+    Description: Cluster Log Group
+    Type: String
+    Default: ''
+
+  JobInfoLogGroup:
+    Description: Cluster Job Info Log Group
+    Type: String
+    Default: ''
+
+  OpenSearchDomainArn:
+    Description: Arn for OpenSearch Domain
+    Type: String
+    Default: ''
+
+  OpenSearchDomainEndPoint:
+    Description: End point for OpenSearch Domain
+    Type: String
+    Default: ''
+
+  LogIndexPrefix:
+    Description: Prefix for name of index to publish log events to
+    Type: String
+    Default: ''
+
+  JobInfoIndexPrefix:
+    Description: Prefix for index name to publish job info events to
+    Type: String
+    Default: ''
+
+  S3KeyPrefix:
+    Description: Prefix for S3 resource keys
+    Type: String
+    Default: ''
+
+Conditions:
+  IncludeLogGroup: !Not [!Equals [!Ref ClusterLogGroup, '']]
+  IncludeJobInfo: !Not [!Equals [!Ref JobInfoLogGroup, '']]
+
+Resources:
+  PClusterLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub
+        - PCLayer-${StackIdSuffix}
+        - { StackIdSuffix: !Select [2, !Split ['/', !Ref 'AWS::StackId']] }
+      Description: Library which contains aws-parallelcluster python package and dependencies
+      Content:
+        S3Bucket: !Ref ParallelClusterBucket
+        S3Key: !Sub
+          - parallelcluster/${Version}/layers/aws-parallelcluster/lambda-layer.zip
+          - { Version: !Ref ClusterVersion }
+      CompatibleRuntimes:
+        - python3.9
+
+  PClusterPolicies:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub
+        - https://${Bucket}.s3.${Region}.amazonaws.com/parallelcluster/${Version}/templates/policies/policies.yaml
+        - { Version: !Ref ClusterVersion,
+            Bucket: !Ref ParallelClusterBucket,
+            Region: !Ref AWS::Region }
+      TimeoutInMinutes: 10
+      Parameters:
+        EnableIamAdminAccess: true
+
+  OpenSearchPublisherPolicy:
+    Type: AWS::IAM:ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublishLogsOnly
+            Effect: Allow
+            Action:
+              - es:ESHttpPost
+            Resource: !Sub
+              - ${OSDomainArn}/${IndexName}*
+              - { OSDomainArn: !Ref OpenSearchDomainArn,
+                  IndexName: !Ref LogIndexPrefix }
+
+
+  CloudWatchLogsPolicy:
+    Type: AWS::IAM:ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: LogsWriteOnly
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*
+
+  PublisherLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal:
+              Service: lambda.amazonaws.com
+      ManagedPolicyArns: !Split
+        - ","
+        - !Sub
+          - ${LambdaExecutionPolicy},${OpenSearchPolicy},${CloudWatchLogsPolicy}
+          - { LambdaExecutionPolicy: !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+              OpenSearchPolicy: !Ref OpenSearchPublisherPolicy,
+              CloudWatchLogsPolicy: !Ref CloudWatchLogsPolicy }
+
+  LogPublisherFunction:
+    Condition: IncludeLogGroup
+    Type: AWS::Lambda::Function
+    Properties:
+      Tags:
+        - Key: "parallelcluster:version"
+          Value: !Ref ClusterVersion
+        - Key: "parallelcluster:observability"
+          Value: "log_publisher"
+      FunctionName: !Sub
+        - pcluster-logpublisher-${StackIdSuffix}
+        - { StackIdSuffix: !Select [2, !Split ['/', !Ref 'AWS::StackId']] }
+      TracingConfig:
+        Mode: Active
+      MemorySize: 128
+      Timeout: 180
+      Code:
+        S3Bucket: !Ref ObservabilityBucket
+        S3Key: !Sub
+          - ${KeyPrefix}/${StackVersion}/${Version}/functions/observability_publishers.zip
+          - { KeyPrefix: !Ref KeyPrefix,
+              StackVersion: !Ref ObservabilityStackVersion,
+              Version: !Ref ClusterVersion }
+      Handler: log_publisher.handler
+      Environment:
+        Variables:
+          OPENSEARCH_DOMAIN: !Ref OpenSearchDomainEndPoint
+          LOG_INDEX_PREFIX: !Ref LogIndexPrefix
+      Runtime: nodejs18.x
+      Role: !GetAtt PublisherLambdaRole.Arn
+
+  CloudwatchLambdaForwarderInvokePermission:
+    Type: AWS::Lambda::Permission
+    Condition: IncludeLogGroup
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt [ LogPublisherFunction, Arn ]
+      Principal: !Sub "logs.${AWS::Region}.amazonaws.com"
+      SourceAccount: !Ref AWS::AccountId
+
+  LogPublisherSubscription:
+    Type: AWS::Logs::SubscriptionFilter
+    Condition: IncludeLogGroup
+    DependsOn: CloudwatchLambdaForwarderInvokePermission
+    Properties:
+      DestinationArn: !GetAtt [ LogPublisherFunction, Arn ]
+      FilterName: 'version-filter'
+      FilterPattern: '{ $.version="0" }'
+      LogGroupName: ClusterLogGroup
+      RoleArn: String

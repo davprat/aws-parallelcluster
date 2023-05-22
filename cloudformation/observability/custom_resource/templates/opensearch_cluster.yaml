@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AWS ParallelCluster Observability OpenSearch Domain CloudFormation Stack
+
+Parameters:
+
+  ClusterVersion:
+    Description: Version of cluster
+    Type: String
+    Default: ''
+
+
+
+Mappings:
+
+Conditions:
+
+Resources:
+  OpenSearchAdminSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      GenerateSecretString:
+        GenerateStringKey: 'password'
+        SecretStringTemplate: '{"username":"admin"}'
+      Tags:
+        - Key: "parallelcluster:version"
+          Value: !Ref ClusterVersion
+        - Key: "parallelcluster:observability"
+          Value: "open-search-domain-secret"
+    UpdateReplacePolicy: "Retain"
+    DeletionPolicy: "Delete"
+
+  OpenSearchServiceDomain:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: true
+        MasterUserName: !Join [ "", [ "{{resolve:secretsmanager:", !Ref OpenSearchAdminSecret, ":SecretString:username::}}" ]]
+        MasterUserPassword: !Join [ "", [ "{{resolve:secretsmanager:", !Ref OpenSearchAdminSecret, ":SecretString:password::}}" ]]
+      ClusterConfig:
+        DedicatedMasterCount: 0
+        DedicatedMasterEnabled: false
+        DedicatedMasterType: ""
+        InstanceCount: 2
+        InstanceType: "m5.large.search"
+        ZoneAwarenessConfig:
+          AvailabilityZoneCount: 2
+        ZoneAwarenessEnabled: true
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+        TLSSecurityPolicy: "Policy-Min-TLS-1-0-2019-07"
+      DomainName: "pcluster-opensearch-service"
+      EBSOptions:
+        EBSEnabled: true,
+        VolumeSize: 100,
+        VolumeType: "gp3"
+      EncryptionAtRestOptions:
+        Enabled": true
+      EngineVersion: "OpenSearch_OpenSearch_2.5"
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      Tags:
+        - Key: "parallelcluster:version"
+          Value: !Ref ClusterVersion
+        - Key: "parallelcluster:observability"
+          Value: "open-search-domain"
+    UpdatePolicy:
+      EnableVersionUpgrade: true
+    UpdateReplacePolicy: "Retain"
+    DeletionPolicy: "Delete"
